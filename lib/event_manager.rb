@@ -1,6 +1,7 @@
 require 'csv'
 require 'sunlight/congress'
 require 'erb'
+require 'pry'
 
 Sunlight::Congress.api_key = "e179a6973728c4dd3fb1204283aaccb5"
 
@@ -52,20 +53,46 @@ def clean_phone_number(phone_number)
   end
 end
 
+def isolate_registration_hour(registration_time)
+  time = DateTime.strptime(registration_time, '%m/%d/%y %k:%M')
+  time.strftime('%H')
+end
+
+def find_most_popular(registration_hours)
+  registration_hours.max_by do |hour|
+    registration_hours.count(hour)
+  end
+end
+
+def find_most_popular_registration_hour(contents)
+  registration_hours = contents.map do |row|
+    registration_time = row[:regdate]
+    isolate_registration_hour(registration_time)
+  end
+  most_popular_hour = find_most_popular(registration_hours)
+  most_popular_hour = DateTime.strptime(most_popular_hour, '%H')
+  most_popular_hour.strftime('%l:%M %p')
+end
+
 puts "Event Manager Initialized! Let's Go!"
 
 contents = CSV.open('event_attendees.csv', headers: true, header_converters: :symbol)
 template_letter = File.read('form_letter.erb')
 erb_template = ERB.new(template_letter)
 
+most_popular_hour = find_most_popular_registration_hour(contents)
+
+puts "The most popular registration hour is #{most_popular_hour}"
 contents.each do |row|
   id = row[0]
   name = row[:first_name]
   zipcode = clean_zipcode(row[:zipcode])
   legislators = legislators_by_zipcode(zipcode)
   phone_number = clean_phone_number(row[:homephone])
+  registration_time = row[:regdate]
+  registration_hour = isolate_registration_hour(registration_time)
+  puts registration_hour
 
-  puts phone_number
   form_letter = erb_template.result(binding)
   save_thank_you_letters(id, form_letter)
   
